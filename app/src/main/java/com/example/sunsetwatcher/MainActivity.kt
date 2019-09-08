@@ -11,7 +11,6 @@ import androidx.preference.PreferenceManager
 import androidx.appcompat.app.AppCompatActivity
 
 
-import kotlinx.android.synthetic.main.activity_main.*
 import android.view.MotionEvent
 import android.view.VelocityTracker
 import android.util.Log
@@ -19,11 +18,26 @@ import android.widget.TextView
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 
+import org.json.JSONObject
+
 class MainActivity : AppCompatActivity() {
 
     var mTotalVelocity = 0.0
     var mOffset = 0
     var CHANNEL_ID = "Sunrise Watcher"
+    private var mVelocityTracker: VelocityTracker? = null
+
+    fun getSunsetTime(latitude : Float, longitude: Float) : String?{
+
+        val queryResults = JSONObject("""{"results":"","status":"INVALID_REQUEST"}""")
+
+        if (queryResults.getString("status") == "OK"){
+            val result = queryResults.getJSONObject("results")
+            return result.getString("sunset")
+        }
+
+        return ""
+    }
 
     fun getSavedOffset(): Int {
         val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this /* Activity context */)
@@ -47,7 +61,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun displayTotal() {
-        var helloTextView = findViewById(R.id.text_view_id) as TextView
+        val helloTextView = findViewById(R.id.text_view_id) as TextView
         helloTextView.setText(mOffset.toString())
     }
 
@@ -87,11 +101,11 @@ class MainActivity : AppCompatActivity() {
 
         sendNotifictation()
 
+        Log.d("testytest", "${getSunsetTime(0.0f,0.0f)}")
     }
 
-    private var mVelocityTracker: VelocityTracker? = null
-
     override fun onTouchEvent(event: MotionEvent): Boolean {
+
 
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
