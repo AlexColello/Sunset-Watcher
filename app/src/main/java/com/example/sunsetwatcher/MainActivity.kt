@@ -1,10 +1,13 @@
 package com.example.sunsetwatcher
 
+import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.location.Location
 import android.os.Build
 import android.os.Bundle
 import androidx.preference.PreferenceManager
@@ -17,17 +20,33 @@ import android.util.Log
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
 
 import org.json.JSONObject
+import androidx.core.app.ComponentActivity.ExtraData
+import androidx.core.content.ContextCompat.getSystemService
+import android.icu.lang.UCharacter.GraphemeClusterBreak.T
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import java.io.PrintWriter
+import java.io.StringWriter
+import kotlin.system.exitProcess
+
 
 class MainActivity : AppCompatActivity() {
 
     var mTotalVelocity = 0.0
     var mOffset = 0
-    var CHANNEL_ID = "Sunrise Watcher"
+    val CHANNEL_ID = "Sunrise Watcher"
     private var mVelocityTracker: VelocityTracker? = null
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
+    val COARSE_LOCATION_PERMISSION_REQUEST = 777;
+    val BACKGROUND_LOCATION_PERMISSION_REQUEST = 666;
 
     fun getSunsetTime(latitude : Float, longitude: Float) : String?{
+
+        val query = ""
 
         val queryResults = JSONObject("""{"results":"","status":"INVALID_REQUEST"}""")
 
@@ -97,15 +116,118 @@ class MainActivity : AppCompatActivity() {
 
         displayTotal()
 
-        createNotificationChannel()
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        updateTime()
 
+        createNotificationChannel()
         sendNotifictation()
 
         Log.d("testytest", "${getSunsetTime(0.0f,0.0f)}")
     }
 
+    fun updateTime(){
+
+        Log.d("location", "In getLocation.")
+
+        // Here, thisActivity is the current activity
+        if (ContextCompat.checkSelfPermission(this,
+                Manifest.permission.ACCESS_COARSE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED) {
+
+            Log.d("location", "Requesting ACCESS_COARSE_LOCATION permissions.")
+            // Permission is not granted
+            ActivityCompat.requestPermissions(this,
+                arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION),
+                COARSE_LOCATION_PERMISSION_REQUEST)
+
+        } else if( Build.VERSION.SDK_INT >= 29 && ContextCompat.checkSelfPermission(this,
+                Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            != PackageManager.PERMISSION_GRANTED){
+
+            Log.d("location", "Requesting ACCESS_BACKGROUND_LOCATION permissions.")
+            // Permission is not granted
+            ActivityCompat.requestPermissions(this,
+                arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION),
+                BACKGROUND_LOCATION_PERMISSION_REQUEST)
+
+        } else {
+
+            fusedLocationClient.lastLocation
+                .addOnSuccessListener { location: Location? ->
+                    run {
+                        // Got last known location. In some rare situations this can be null.
+                        if (location != null) {
+                            Log.d(
+                                "location",
+                                "Latitude: ${location.latitude} Longitude: ${location.longitude}"
+                            )
+                        } else {
+                            Log.e("location", "Location is null")
+                        }
+                    }
+                }.addOnFailureListener {
+                    run {
+                        val sw = StringWriter()
+                        val pw = PrintWriter(sw)
+                        it.printStackTrace(pw)
+                        val stackTrace = sw.toString() // stack trace as a string
+                        Log.e("location", stackTrace)
+                    }
+                }
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int,
+                                            permissions: Array<String>, grantResults: IntArray) {
+        when (requestCode) {
+            COARSE_LOCATION_PERMISSION_REQUEST -> {
+                // If request is cancelled, the result arrays are empty.
+                if ((grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
+                    // permission was granted, yay! Do the
+                    // contacts-related task you need to do.
+
+                    updateTime()
+
+                } else {
+                    // permission denied, boo! Disable the
+                    // functionality that depends on this permission.
+                    Log.e("location", "Permission denied for ACCESS_COARSE_LOCATION.")
+                    exitProcess(0)
+                }
+                return
+            }
+
+            BACKGROUND_LOCATION_PERMISSION_REQUEST -> {
+                // If request is cancelled, the result arrays are empty.
+                if ((grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
+                    // permission was granted, yay! Do the
+                    // contacts-related task you need to do.
+
+                    updateTime()
+
+                } else {
+                    // permission denied, boo! Disable the
+                    // functionality that depends on this permission.
+
+                    if(Build.VERSION.SDK_INT >= 29) {
+                        Log.e("location", "Permission denied for ACCESS_BACKGROUND_LOCATION.")
+                        exitProcess(0)
+                    }
+                }
+                return
+            }
+
+            // Add other 'when' lines to check for other
+            // permissions this app might request.
+            else -> {
+                // Ignore all other requests.
+            }
+        }
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
 
+        updateTime()
 
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -129,8 +251,8 @@ class MainActivity : AppCompatActivity() {
                     computeCurrentVelocity(1000)
                     // Log velocity of pixels per second
                     // Best practice to use VelocityTrackerCompat where possible.
-                    Log.d("", "X velocity: ${getXVelocity(pointerId)}")
-                    Log.d("", "Y velocity: ${getYVelocity(pointerId)}")
+                    Log.d("velocity", "X velocity: ${getXVelocity(pointerId)}")
+                    Log.d("velocity", "Y velocity: ${getYVelocity(pointerId)}")
 
                     mTotalVelocity += getYVelocity(pointerId)
 
