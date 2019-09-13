@@ -29,6 +29,10 @@ import androidx.core.content.ContextCompat.getSystemService
 import android.icu.lang.UCharacter.GraphemeClusterBreak.T
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.android.volley.Request
+import com.android.volley.Response
+import com.android.volley.toolbox.StringRequest
+import com.android.volley.toolbox.Volley
 import java.io.PrintWriter
 import java.io.StringWriter
 import kotlin.system.exitProcess
@@ -41,21 +45,55 @@ class MainActivity : AppCompatActivity() {
     val CHANNEL_ID = "Sunrise Watcher"
     private var mVelocityTracker: VelocityTracker? = null
     private lateinit var fusedLocationClient: FusedLocationProviderClient
-    val COARSE_LOCATION_PERMISSION_REQUEST = 777;
-    val BACKGROUND_LOCATION_PERMISSION_REQUEST = 666;
+    val COARSE_LOCATION_PERMISSION_REQUEST = 777
+    val BACKGROUND_LOCATION_PERMISSION_REQUEST = 666
 
-    fun getSunsetTime(latitude : Float, longitude: Float) : String?{
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
 
-        val query = ""
+        mTotalVelocity = 0.0
 
-        val queryResults = JSONObject("""{"results":"","status":"INVALID_REQUEST"}""")
+        mOffset = getSavedOffset()
+
+        displayTotal()
+
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        updateTime()
+
+        createNotificationChannel()
+        sendNotifictation()
+    }
+
+
+    fun parseQuery(queryResultString : String){
+
+        val queryResults = JSONObject(queryResultString)
 
         if (queryResults.getString("status") == "OK"){
             val result = queryResults.getJSONObject("results")
-            return result.getString("sunset")
+            Log.d("request", "Found sunset time ${result.getString("sunset")}")
+        } else {
+            Log.e("request", "Failed to parse result: \"${queryResultString}\"")
         }
+    }
 
-        return ""
+    fun getSunsetTime(latitude : Double, longitude: Double){
+
+        // Instantiate the RequestQueue.
+        val queue = Volley.newRequestQueue(this)
+        val url = "https://api.sunrise-sunset.org/json?lat=${latitude}&lng=${longitude}&date=today\n"
+
+        // Request a string response from the provided URL.
+        val stringRequest = StringRequest(
+            Request.Method.GET, url,
+            Response.Listener<String> { response ->
+                parseQuery(response)
+            },
+            Response.ErrorListener { Log.e("request","Request for \"${url}\" failed.")})
+
+        // Add the request to the RequestQueue.
+        queue.add(stringRequest)
     }
 
     fun getSavedOffset(): Int {
@@ -106,28 +144,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
-
-        mTotalVelocity = 0.0
-
-        mOffset = getSavedOffset()
-
-        displayTotal()
-
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-        updateTime()
-
-        createNotificationChannel()
-        sendNotifictation()
-
-        Log.d("testytest", "${getSunsetTime(0.0f,0.0f)}")
-    }
-
     fun updateTime(){
-
-        Log.d("location", "In getLocation.")
 
         // Here, thisActivity is the current activity
         if (ContextCompat.checkSelfPermission(this,
@@ -161,6 +178,7 @@ class MainActivity : AppCompatActivity() {
                                 "location",
                                 "Latitude: ${location.latitude} Longitude: ${location.longitude}"
                             )
+                            getSunsetTime(location.latitude, location.longitude)
                         } else {
                             Log.e("location", "Location is null")
                         }
