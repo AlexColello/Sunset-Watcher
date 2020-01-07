@@ -1,6 +1,8 @@
 package com.example.sunsetwatcher
 
 import android.Manifest
+import android.annotation.SuppressLint
+import android.app.AlarmManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -35,18 +37,22 @@ import com.android.volley.toolbox.StringRequest
 import com.android.volley.toolbox.Volley
 import java.io.PrintWriter
 import java.io.StringWriter
+import java.util.*
 import kotlin.system.exitProcess
-
 
 class MainActivity : AppCompatActivity() {
 
     var mTotalVelocity = 0.0
     var mOffset = 0
-    val CHANNEL_ID = "Sunrise Watcher"
     private var mVelocityTracker: VelocityTracker? = null
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     val COARSE_LOCATION_PERMISSION_REQUEST = 777
     val BACKGROUND_LOCATION_PERMISSION_REQUEST = 666
+
+    override fun onStart(){
+        super.onStart()
+        inst = this
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -61,10 +67,7 @@ class MainActivity : AppCompatActivity() {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         updateTime()
 
-        createNotificationChannel()
-        sendNotifictation()
     }
-
 
     fun parseQuery(queryResultString : String){
 
@@ -82,7 +85,7 @@ class MainActivity : AppCompatActivity() {
 
         // Instantiate the RequestQueue.
         val queue = Volley.newRequestQueue(this)
-        val url = "https://api.sunrise-sunset.org/json?lat=${latitude}&lng=${longitude}&date=today\n"
+        val url = "https://api.sunrise-sunset.org/json?lat=${latitude}&lng=${longitude}&date=today&formatted=0"
 
         // Request a string response from the provided URL.
         val stringRequest = StringRequest(
@@ -122,26 +125,30 @@ class MainActivity : AppCompatActivity() {
         helloTextView.setText(mOffset.toString())
     }
 
-    fun sendNotifictation() {
-        // Create an explicit intent for an Activity in your app
-        val intent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-        }
-        val pendingIntent: PendingIntent = PendingIntent.getActivity(this, 0, intent, 0)
+    fun setAlarm(time : String){
 
-        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.notification_icon)
-            .setContentTitle("My notification")
-            .setContentText("Hello World!")
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            // Set the intent that will fire when the user taps the notification
-            .setContentIntent(pendingIntent)
-            .setAutoCancel(true)
+        Log.d("time", time)
 
-        with(NotificationManagerCompat.from(this)) {
-            // notificationId is a unique int for each notification that you must define
-            notify(0, builder.build())
+        val alarmMgr: AlarmManager = this.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        lateinit var alarmIntent: PendingIntent
+
+        alarmIntent = Intent(this, AlarmReceiver::class.java).let { intent ->
+            PendingIntent.getBroadcast(this, 0, intent, 0)
         }
+
+        val calendar: Calendar = Calendar.getInstance().apply {
+            timeInMillis = System.currentTimeMillis()
+            set(Calendar.HOUR_OF_DAY, 14)
+        }
+
+        // With setInexactRepeating(), you have to use one of the AlarmManager interval
+        // constants--in this case, AlarmManager.INTERVAL_DAY.
+        alarmMgr.setInexactRepeating(
+            AlarmManager.RTC_WAKEUP,
+            calendar.timeInMillis,
+            AlarmManager.INTERVAL_DAY,
+            alarmIntent
+        )
     }
 
     fun updateTime(){
@@ -291,21 +298,10 @@ class MainActivity : AppCompatActivity() {
         return true
     }
 
-    private fun createNotificationChannel() {
-        // Create the NotificationChannel, but only on API 26+ because
-        // the NotificationChannel class is new and not in the support library
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val name = getString(R.string.channel_name)
-            val descriptionText = getString(R.string.channel_description)
-            val importance = NotificationManager.IMPORTANCE_DEFAULT
-            val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
-                description = descriptionText
-            }
-            // Register the channel with the system
-            val notificationManager: NotificationManager =
-                getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
-        }
-    }
+}
 
+var inst : MainActivity? = null
+
+fun instance(): MainActivity? {
+    return inst
 }
