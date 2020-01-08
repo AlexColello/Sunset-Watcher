@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.os.Build
+import android.util.Log
 import androidx.core.app.JobIntentService
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -14,7 +15,8 @@ import androidx.core.app.NotificationManagerCompat
 class NotificationService : JobIntentService(){
 
     override fun onHandleWork(intent: Intent) {
-        sendNotifictation()
+        Log.d("notification", "Sending Notification")
+        sendNotification()
     }
 
     private fun createNotificationChannel(notificationManager: NotificationManager) {
@@ -33,7 +35,7 @@ class NotificationService : JobIntentService(){
         }
     }
 
-    fun sendNotifictation() {
+    private fun sendNotification() {
 
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
@@ -52,7 +54,7 @@ class NotificationService : JobIntentService(){
         val builder = NotificationCompat.Builder(this, id)
             .setSmallIcon(R.drawable.notification_icon)
             .setContentTitle("Sunset is soon!")
-            .setContentText("The sunset it at ")
+            .setContentText("Go out and enjoy the sunset!")
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             // Set the intent that will fire when the user taps the notification
             .setContentIntent(pendingIntent)

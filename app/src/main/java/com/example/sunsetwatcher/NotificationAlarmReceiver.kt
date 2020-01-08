@@ -9,7 +9,9 @@ import android.net.Uri
 import androidx.core.app.JobIntentService
 
 
-class AlarmReceiver: BroadcastReceiver() {
+class NotificationAlarmReceiver: BroadcastReceiver() {
+
+    val NOTIFICATION_JOB_ID = 1001
 
     override fun onReceive(context: Context, intent: Intent) {
         //this will update the UI with message
@@ -25,7 +27,7 @@ class AlarmReceiver: BroadcastReceiver() {
         val ringtone = RingtoneManager.getRingtone(context, alarmUri)
         ringtone.play()
 
-        JobIntentService.enqueueWork(context, NotificationService::class.java, 1000, intent)
+        JobIntentService.enqueueWork(context, NotificationService::class.java, NOTIFICATION_JOB_ID, intent)
 
         resultCode = Activity.RESULT_OK
     }

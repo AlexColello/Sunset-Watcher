@@ -1,15 +1,11 @@
 package com.example.sunsetwatcher
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.app.AlarmManager
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.location.Location
 import android.os.Build
 import android.os.Bundle
 import androidx.preference.PreferenceManager
@@ -20,23 +16,11 @@ import android.view.MotionEvent
 import android.view.VelocityTracker
 import android.util.Log
 import android.widget.TextView
-import androidx.core.app.NotificationCompat
-import androidx.core.app.NotificationManagerCompat
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationServices
 
-import org.json.JSONObject
-import androidx.core.app.ComponentActivity.ExtraData
-import androidx.core.content.ContextCompat.getSystemService
-import android.icu.lang.UCharacter.GraphemeClusterBreak.T
 import androidx.core.app.ActivityCompat
+import androidx.core.app.JobIntentService
 import androidx.core.content.ContextCompat
-import com.android.volley.Request
-import com.android.volley.Response
-import com.android.volley.toolbox.StringRequest
-import com.android.volley.toolbox.Volley
-import java.io.PrintWriter
-import java.io.StringWriter
+import java.time.OffsetDateTime
 import java.util.*
 import kotlin.system.exitProcess
 
@@ -45,9 +29,9 @@ class MainActivity : AppCompatActivity() {
     var mTotalVelocity = 0.0
     var mOffset = 0
     private var mVelocityTracker: VelocityTracker? = null
-    private lateinit var fusedLocationClient: FusedLocationProviderClient
     val COARSE_LOCATION_PERMISSION_REQUEST = 777
     val BACKGROUND_LOCATION_PERMISSION_REQUEST = 666
+    val notificationIntent : PendingIntent? = null
 
     override fun onStart(){
         super.onStart()
@@ -62,41 +46,19 @@ class MainActivity : AppCompatActivity() {
 
         mOffset = getSavedOffset()
 
-        displayTotal()
+        while(!checkPermissions()){}
 
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-        updateTime()
-
-    }
-
-    fun parseQuery(queryResultString : String){
-
-        val queryResults = JSONObject(queryResultString)
-
-        if (queryResults.getString("status") == "OK"){
-            val result = queryResults.getJSONObject("results")
-            Log.d("request", "Found sunset time ${result.getString("sunset")}")
-        } else {
-            Log.e("request", "Failed to parse result: \"${queryResultString}\"")
+        if(getSavedSunsetTime() < 0){
+            JobIntentService.enqueueWork(this, UpdateService::class.java, 1001, intent)
         }
-    }
+        while(getSavedSunsetTime() < 0){
+            Log.d("setup", "Waiting for sunset time")
+            Thread.sleep(100)
+        }
 
-    fun getSunsetTime(latitude : Double, longitude: Double){
+        setupUpdateAlarm()
+        updateUI()
 
-        // Instantiate the RequestQueue.
-        val queue = Volley.newRequestQueue(this)
-        val url = "https://api.sunrise-sunset.org/json?lat=${latitude}&lng=${longitude}&date=today&formatted=0"
-
-        // Request a string response from the provided URL.
-        val stringRequest = StringRequest(
-            Request.Method.GET, url,
-            Response.Listener<String> { response ->
-                parseQuery(response)
-            },
-            Response.ErrorListener { Log.e("request","Request for \"${url}\" failed.")})
-
-        // Add the request to the RequestQueue.
-        queue.add(stringRequest)
     }
 
     fun getSavedOffset(): Int {
@@ -116,42 +78,79 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    fun getSavedSunsetTime(): Long {
+        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this /* Activity context */)
+        val retval = sharedPreferences.getLong(getString(R.string.sunset_time_pref_name), -1)
+
+        return retval
+
+    }
+
+    fun setSavedSunsetTime(sunsetTime : Long) {
+        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this /* Activity context */)
+
+        with (sharedPreferences.edit()) {
+            putLong(getString(R.string.sunset_time_pref_name), sunsetTime)
+            commit()
+        }
+    }
+
+    fun setSavedSunsetTime(sunsetTime : String) {
+
+        val datetime : OffsetDateTime = OffsetDateTime.parse(sunsetTime)
+        val millis = datetime.toInstant().toEpochMilli()
+
+        setSavedSunsetTime(millis)
+    }
+
     fun convertVelocityToOffset(velocity : Double) : Int{
         return (velocity / 1000).toInt()
     }
 
-    fun displayTotal() {
-        val helloTextView = findViewById(R.id.text_view_id) as TextView
+    fun updateUI() {
+
+        updateNotificationTime()
+
+        val helloTextView = findViewById<TextView>(R.id.text_view_id)
         helloTextView.setText(mOffset.toString())
     }
 
-    fun setAlarm(time : String){
-
-        Log.d("time", time)
+    fun setupUpdateAlarm(){
 
         val alarmMgr: AlarmManager = this.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        lateinit var alarmIntent: PendingIntent
-
-        alarmIntent = Intent(this, AlarmReceiver::class.java).let { intent ->
+        val alarmIntent: PendingIntent = Intent(this, UpdateAlarmReceiver::class.java).let { intent ->
             PendingIntent.getBroadcast(this, 0, intent, 0)
-        }
-
-        val calendar: Calendar = Calendar.getInstance().apply {
-            timeInMillis = System.currentTimeMillis()
-            set(Calendar.HOUR_OF_DAY, 14)
         }
 
         // With setInexactRepeating(), you have to use one of the AlarmManager interval
         // constants--in this case, AlarmManager.INTERVAL_DAY.
         alarmMgr.setInexactRepeating(
-            AlarmManager.RTC_WAKEUP,
-            calendar.timeInMillis,
-            AlarmManager.INTERVAL_DAY,
+            AlarmManager.RTC,
+            Calendar.getInstance().getTimeInMillis(),
+            AlarmManager.INTERVAL_HALF_HOUR,
             alarmIntent
         )
     }
 
-    fun updateTime(){
+    fun updateNotificationTime(){
+
+        val alarmMgr: AlarmManager = this.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val alarmIntent: PendingIntent = Intent(this, NotificationAlarmReceiver::class.java).let { intent ->
+            PendingIntent.getBroadcast(this, 0, intent, 0)
+        }
+
+        val millis = getSavedSunsetTime() + mOffset * 100
+
+        alarmMgr.setExact(
+            AlarmManager.RTC_WAKEUP,
+            millis,
+            alarmIntent
+        )
+    }
+
+    fun checkPermissions(): Boolean {
+
+        var passed = true
 
         // Here, thisActivity is the current activity
         if (ContextCompat.checkSelfPermission(this,
@@ -164,42 +163,25 @@ class MainActivity : AppCompatActivity() {
                 arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION),
                 COARSE_LOCATION_PERMISSION_REQUEST)
 
-        } else if( Build.VERSION.SDK_INT >= 29 && ContextCompat.checkSelfPermission(this,
+            passed = false
+        }
+
+        if( Build.VERSION.SDK_INT >= 29 && ContextCompat.checkSelfPermission(this,
                 Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-            != PackageManager.PERMISSION_GRANTED){
+            != PackageManager.PERMISSION_GRANTED) {
 
             Log.d("location", "Requesting ACCESS_BACKGROUND_LOCATION permissions.")
             // Permission is not granted
-            ActivityCompat.requestPermissions(this,
+            ActivityCompat.requestPermissions(
+                this,
                 arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION),
-                BACKGROUND_LOCATION_PERMISSION_REQUEST)
+                BACKGROUND_LOCATION_PERMISSION_REQUEST
+            )
 
-        } else {
-
-            fusedLocationClient.lastLocation
-                .addOnSuccessListener { location: Location? ->
-                    run {
-                        // Got last known location. In some rare situations this can be null.
-                        if (location != null) {
-                            Log.d(
-                                "location",
-                                "Latitude: ${location.latitude} Longitude: ${location.longitude}"
-                            )
-                            getSunsetTime(location.latitude, location.longitude)
-                        } else {
-                            Log.e("location", "Location is null")
-                        }
-                    }
-                }.addOnFailureListener {
-                    run {
-                        val sw = StringWriter()
-                        val pw = PrintWriter(sw)
-                        it.printStackTrace(pw)
-                        val stackTrace = sw.toString() // stack trace as a string
-                        Log.e("location", stackTrace)
-                    }
-                }
+            passed = false
         }
+
+        return passed
     }
 
     override fun onRequestPermissionsResult(requestCode: Int,
@@ -211,12 +193,12 @@ class MainActivity : AppCompatActivity() {
                     // permission was granted, yay! Do the
                     // contacts-related task you need to do.
 
-                    updateTime()
+                    Log.d("permissions", "Permission granted for ACCESS_COARSE_LOCATION.")
 
                 } else {
                     // permission denied, boo! Disable the
                     // functionality that depends on this permission.
-                    Log.e("location", "Permission denied for ACCESS_COARSE_LOCATION.")
+                    Log.e("permissions", "Permission denied for ACCESS_COARSE_LOCATION.")
                     exitProcess(0)
                 }
                 return
@@ -228,14 +210,14 @@ class MainActivity : AppCompatActivity() {
                     // permission was granted, yay! Do the
                     // contacts-related task you need to do.
 
-                    updateTime()
+                    Log.d("permissions", "Permission granted for ACCESS_BACKGROUND_LOCATION.")
 
                 } else {
                     // permission denied, boo! Disable the
                     // functionality that depends on this permission.
 
                     if(Build.VERSION.SDK_INT >= 29) {
-                        Log.e("location", "Permission denied for ACCESS_BACKGROUND_LOCATION.")
+                        Log.e("permissions", "Permission denied for ACCESS_BACKGROUND_LOCATION.")
                         exitProcess(0)
                     }
                 }
@@ -251,8 +233,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-
-        updateTime()
 
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -282,7 +262,7 @@ class MainActivity : AppCompatActivity() {
                     mTotalVelocity += getYVelocity(pointerId)
 
                     mOffset = convertVelocityToOffset(mTotalVelocity)
-                    displayTotal()
+                    updateUI()
                 }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
@@ -291,7 +271,7 @@ class MainActivity : AppCompatActivity() {
                 mVelocityTracker = null
 
                 mOffset = convertVelocityToOffset(mTotalVelocity)
-                displayTotal()
+                updateUI()
                 setSavedOffset(mOffset)
             }
         }
