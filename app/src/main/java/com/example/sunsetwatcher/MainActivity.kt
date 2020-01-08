@@ -35,6 +35,7 @@ class MainActivity : AppCompatActivity() {
     val BACKGROUND_LOCATION_PERMISSION_REQUEST = 666
     val VELOCITY_SCALAR: Double = 100.0
     val OFFSET_TIME_SCALAR: Double = 1.0
+    var mNotificationIntent : PendingIntent? = null
 
     override fun onStart(){
         super.onStart()
@@ -50,11 +51,11 @@ class MainActivity : AppCompatActivity() {
         mOffset = getSavedOffset()
         mSunsetTime = getSavedSunsetTime()
 
-        while(!checkPermissions()){}
+        while(!checkPermissions());
 
         val updateIntent = Intent(this, UpdateService::class.java)
 
-        JobIntentService.enqueueWork(this, UpdateService::class.java, UPDATE_JOB_ID, updateIntent!!)
+        JobIntentService.enqueueWork(this, UpdateService::class.java, UPDATE_JOB_ID, updateIntent)
 
         setupUpdateAlarm()
         updateUI()
@@ -103,8 +104,12 @@ class MainActivity : AppCompatActivity() {
         setSavedSunsetTime(millis)
     }
 
-    fun convertVelocityToOffset(velocity : Double) : Long {
+    private fun convertVelocityToOffset(velocity : Double) : Long {
         return (velocity / VELOCITY_SCALAR).toLong()
+    }
+
+    fun getOffsetMinutes(): Long{
+        return (mOffset * OFFSET_TIME_SCALAR).toLong() / 60
     }
 
     fun updateUI() {
@@ -115,15 +120,13 @@ class MainActivity : AppCompatActivity() {
         offsetTextView.setText(mOffset.toString())
 
         val sunsetTextView = findViewById<TextView>(R.id.sunset_time_text)
-        val sunsetTime = Date(mSunsetTime)
-        sunsetTextView.setText(sunsetTime.toString())
+        sunsetTextView.setText(epochToString(mSunsetTime))
 
         val notificationTextView = findViewById<TextView>(R.id.notification_time_text)
-        val notificationTime = Date(mNotificationTime)
-        notificationTextView.setText(notificationTime.toString())
+        notificationTextView.setText(epochToString(mNotificationTime))
     }
 
-    fun setupUpdateAlarm(){
+    private fun setupUpdateAlarm(){
 
         val alarmMgr: AlarmManager = this.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val alarmIntent: PendingIntent = Intent(this, UpdateAlarmReceiver::class.java).let { intent ->
@@ -140,23 +143,25 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    fun updateNotificationTime(){
+    private fun updateNotificationTime(){
 
         val alarmMgr: AlarmManager = this.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val alarmIntent: PendingIntent = Intent(this, NotificationAlarmReceiver::class.java).let { intent ->
-            PendingIntent.getBroadcast(this, 0, intent, 0)
+        if(mNotificationIntent == null){
+            mNotificationIntent = Intent(this, NotificationAlarmReceiver::class.java).let { intent ->
+                PendingIntent.getBroadcast(this, 0, intent, 0)
+            }
         }
 
         mSunsetTime = getSavedSunsetTime()
-        val offsetMillis: Long = (mOffset * OFFSET_TIME_SCALAR).toLong() / 60 * 60 * 1000
+        val offsetMillis: Long = getOffsetMinutes() * 60 * 1000
         val millis = mSunsetTime + offsetMillis
-
         mNotificationTime = millis
 
+        alarmMgr.cancel(mNotificationIntent)
         alarmMgr.setExact(
             AlarmManager.RTC_WAKEUP,
-            millis,
-            alarmIntent
+            mNotificationTime,
+            mNotificationIntent
         )
     }
 
@@ -296,4 +301,9 @@ var inst : MainActivity? = null
 
 fun instance(): MainActivity? {
     return inst
+}
+
+fun epochToString(millis: Long): String{
+    val sunsetTime = Date(millis)
+    return sunsetTime.toString()
 }

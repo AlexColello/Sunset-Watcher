@@ -26,32 +26,29 @@ class UpdateService : JobIntentService(){
 
         val fusedLocationClient: FusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
 
-        if(instance()!!.checkPermissions()) {
-
-            fusedLocationClient.lastLocation
-                .addOnSuccessListener { location: Location? ->
-                    run {
-                        // Got last known location. In some rare situations this can be null.
-                        if (location != null) {
-                            Log.d(
-                                "location",
-                                "Latitude: ${location.latitude} Longitude: ${location.longitude}"
-                            )
-                            getSunsetTime(location.latitude, location.longitude)
-                        } else {
-                            Log.e("location", "Location is null")
-                        }
-                    }
-                }.addOnFailureListener {
-                    run {
-                        val sw = StringWriter()
-                        val pw = PrintWriter(sw)
-                        it.printStackTrace(pw)
-                        val stackTrace = sw.toString() // stack trace as a string
-                        Log.e("location", stackTrace)
+        fusedLocationClient.lastLocation
+            .addOnSuccessListener { location: Location? ->
+                run {
+                    // Got last known location. In some rare situations this can be null.
+                    if (location != null) {
+                        Log.d(
+                            "location",
+                            "Latitude: ${location.latitude} Longitude: ${location.longitude}"
+                        )
+                        getSunsetTime(location.latitude, location.longitude)
+                    } else {
+                        Log.e("location", "Location is null")
                     }
                 }
-        }
+            }.addOnFailureListener {
+                run {
+                    val sw = StringWriter()
+                    val pw = PrintWriter(sw)
+                    it.printStackTrace(pw)
+                    val stackTrace = sw.toString() // stack trace as a string
+                    Log.e("location", stackTrace)
+                }
+            }
     }
 
     private fun processQueryResponse(queryResultString : String){
@@ -67,7 +64,7 @@ class UpdateService : JobIntentService(){
             val main = instance()!!
 
             main.setSavedSunsetTime(timeString)
-            main.updateNotificationTime()
+            main.updateUI()
 
         } else {
             Log.e("request", "Failed to parse result: \"${queryResultString}\"")
