@@ -27,11 +27,14 @@ import kotlin.system.exitProcess
 class MainActivity : AppCompatActivity() {
 
     var mTotalVelocity = 0.0
-    var mOffset = 0
+    private var mOffset: Long = 0L
+    private var mSunsetTime: Long = 0L
+    private var mNotificationTime: Long = 0L
     private var mVelocityTracker: VelocityTracker? = null
     val COARSE_LOCATION_PERMISSION_REQUEST = 777
     val BACKGROUND_LOCATION_PERMISSION_REQUEST = 666
-    val notificationIntent : PendingIntent? = null
+    val VELOCITY_SCALAR: Double = 100.0
+    val OFFSET_TIME_SCALAR: Double = 1.0
 
     override fun onStart(){
         super.onStart()
@@ -45,42 +48,39 @@ class MainActivity : AppCompatActivity() {
         mTotalVelocity = 0.0
 
         mOffset = getSavedOffset()
+        mSunsetTime = getSavedSunsetTime()
 
         while(!checkPermissions()){}
 
-        if(getSavedSunsetTime() < 0){
-            JobIntentService.enqueueWork(this, UpdateService::class.java, 1001, intent)
-        }
-        while(getSavedSunsetTime() < 0){
-            Log.d("setup", "Waiting for sunset time")
-            Thread.sleep(100)
-        }
+        val updateIntent = Intent(this, UpdateService::class.java)
+
+        JobIntentService.enqueueWork(this, UpdateService::class.java, UPDATE_JOB_ID, updateIntent!!)
 
         setupUpdateAlarm()
         updateUI()
 
     }
 
-    fun getSavedOffset(): Int {
+    fun getSavedOffset(): Long {
         val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this /* Activity context */)
-        val defaultValue = sharedPreferences.getInt(getString(R.string.offset_pref_name), 0)
+        val defaultValue = sharedPreferences.getLong(getString(R.string.offset_pref_name), 0L)
 
         return defaultValue
 
     }
 
-    fun setSavedOffset(offset : Int) {
+    fun setSavedOffset(offset : Long) {
         val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this /* Activity context */)
 
         with (sharedPreferences.edit()) {
-            putInt(getString(R.string.offset_pref_name), offset)
+            putLong(getString(R.string.offset_pref_name), offset)
             commit()
         }
     }
 
     fun getSavedSunsetTime(): Long {
         val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this /* Activity context */)
-        val retval = sharedPreferences.getLong(getString(R.string.sunset_time_pref_name), -1)
+        val retval = sharedPreferences.getLong(getString(R.string.sunset_time_pref_name), -1L)
 
         return retval
 
@@ -103,16 +103,24 @@ class MainActivity : AppCompatActivity() {
         setSavedSunsetTime(millis)
     }
 
-    fun convertVelocityToOffset(velocity : Double) : Int{
-        return (velocity / 1000).toInt()
+    fun convertVelocityToOffset(velocity : Double) : Long {
+        return (velocity / VELOCITY_SCALAR).toLong()
     }
 
     fun updateUI() {
 
         updateNotificationTime()
 
-        val helloTextView = findViewById<TextView>(R.id.text_view_id)
-        helloTextView.setText(mOffset.toString())
+        val offsetTextView = findViewById<TextView>(R.id.offset_text)
+        offsetTextView.setText(mOffset.toString())
+
+        val sunsetTextView = findViewById<TextView>(R.id.sunset_time_text)
+        val sunsetTime = Date(mSunsetTime)
+        sunsetTextView.setText(sunsetTime.toString())
+
+        val notificationTextView = findViewById<TextView>(R.id.notification_time_text)
+        val notificationTime = Date(mNotificationTime)
+        notificationTextView.setText(notificationTime.toString())
     }
 
     fun setupUpdateAlarm(){
@@ -139,7 +147,11 @@ class MainActivity : AppCompatActivity() {
             PendingIntent.getBroadcast(this, 0, intent, 0)
         }
 
-        val millis = getSavedSunsetTime() + mOffset * 100
+        mSunsetTime = getSavedSunsetTime()
+        val offsetMillis: Long = (mOffset * OFFSET_TIME_SCALAR).toLong() / 60 * 60 * 1000
+        val millis = mSunsetTime + offsetMillis
+
+        mNotificationTime = millis
 
         alarmMgr.setExact(
             AlarmManager.RTC_WAKEUP,
@@ -244,7 +256,7 @@ class MainActivity : AppCompatActivity() {
                 // Add a user's movement to the tracker.
                 mVelocityTracker?.addMovement(event)
 
-                mTotalVelocity = mOffset * 1000.0
+                mTotalVelocity = mOffset * VELOCITY_SCALAR
             }
             MotionEvent.ACTION_MOVE -> {
                 mVelocityTracker?.apply {
@@ -256,8 +268,8 @@ class MainActivity : AppCompatActivity() {
                     computeCurrentVelocity(1000)
                     // Log velocity of pixels per second
                     // Best practice to use VelocityTrackerCompat where possible.
-                    Log.d("velocity", "X velocity: ${getXVelocity(pointerId)}")
-                    Log.d("velocity", "Y velocity: ${getYVelocity(pointerId)}")
+                    //Log.d("velocity", "X velocity: ${getXVelocity(pointerId)}")
+                    //Log.d("velocity", "Y velocity: ${getYVelocity(pointerId)}")
 
                     mTotalVelocity += getYVelocity(pointerId)
 

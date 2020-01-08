@@ -10,9 +10,23 @@
     <!--<include layout="@layout/content_main" />-->
 
     <TextView
-        android:id="@+id/text_view_id"
+        android:id="@+id/offset_text"
         android:layout_height="wrap_content"
         android:layout_width="wrap_content"
         android:layout_gravity="center"/>
+
+    <TextView
+        android:id="@+id/sunset_time_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:translationY="-50dp" />
+
+    <TextView
+        android:id="@+id/notification_time_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:translationY="50dp" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

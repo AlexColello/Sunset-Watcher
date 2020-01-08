@@ -22,6 +22,8 @@ class UpdateService : JobIntentService(){
 
     private fun updateSunsetTime(){
 
+        Log.d("update", "Updating sunset time.")
+
         val fusedLocationClient: FusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
 
         if(instance()!!.checkPermissions()) {
@@ -90,3 +92,4 @@ class UpdateService : JobIntentService(){
         queue.add(stringRequest)
     }
 }
+

@@ -6,14 +6,16 @@ import android.content.Intent
 import android.app.Activity
 import android.media.RingtoneManager
 import android.net.Uri
+import android.util.Log
 import androidx.core.app.JobIntentService
 
+const val NOTIFICATION_JOB_ID = 1001
 
 class NotificationAlarmReceiver: BroadcastReceiver() {
 
-    val NOTIFICATION_JOB_ID = 1001
-
     override fun onReceive(context: Context, intent: Intent) {
+        Log.d("notification", "In NotificationAlarmReceiver")
+
         //this will update the UI with message
         //val inst = instance()
 
