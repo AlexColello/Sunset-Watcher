@@ -61,10 +61,13 @@ class UpdateService : JobIntentService(){
 
             Log.d("request", "Found sunset time $timeString")
 
-            val main = instance()!!
+            val sunsetMillis = setSavedSunsetTime(timeString, this)
+            val offsetMillis = getOffset(this)
+            val notificationTime = calculateNotificationTime(sunsetMillis, offsetMillis)
+            updateNotificationAlarm(this, notificationTime)
 
-            main.setSavedSunsetTime(timeString)
-            main.updateUI()
+            val main = instance()
+            main?.updateUI()
 
         } else {
             Log.e("request", "Failed to parse result: \"${queryResultString}\"")

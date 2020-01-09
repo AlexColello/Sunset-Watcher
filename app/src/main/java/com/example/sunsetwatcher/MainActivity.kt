@@ -8,10 +8,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import androidx.preference.PreferenceManager
 import androidx.appcompat.app.AppCompatActivity
-
-
 import android.view.MotionEvent
 import android.view.VelocityTracker
 import android.util.Log
@@ -20,22 +17,18 @@ import android.widget.TextView
 import androidx.core.app.ActivityCompat
 import androidx.core.app.JobIntentService
 import androidx.core.content.ContextCompat
-import java.time.OffsetDateTime
 import java.util.*
 import kotlin.system.exitProcess
+
+val OFFSET_TIME_SCALAR: Double = 1.0
 
 class MainActivity : AppCompatActivity() {
 
     var mTotalVelocity = 0.0
-    private var mOffset: Long = 0L
-    private var mSunsetTime: Long = 0L
-    private var mNotificationTime: Long = 0L
     private var mVelocityTracker: VelocityTracker? = null
     val COARSE_LOCATION_PERMISSION_REQUEST = 777
     val BACKGROUND_LOCATION_PERMISSION_REQUEST = 666
     val VELOCITY_SCALAR: Double = 100.0
-    val OFFSET_TIME_SCALAR: Double = 1.0
-    var mNotificationIntent : PendingIntent? = null
 
     override fun onStart(){
         super.onStart()
@@ -46,15 +39,12 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        mTotalVelocity = 0.0
-
-        mOffset = getSavedOffset()
-        mSunsetTime = getSavedSunsetTime()
-
         while(!checkPermissions());
 
-        val updateIntent = Intent(this, UpdateService::class.java)
+        mTotalVelocity = 0.0
+        loadCache(this)
 
+        val updateIntent = Intent(this, UpdateService::class.java)
         JobIntentService.enqueueWork(this, UpdateService::class.java, UPDATE_JOB_ID, updateIntent)
 
         setupUpdateAlarm()
@@ -62,68 +52,24 @@ class MainActivity : AppCompatActivity() {
 
     }
 
-    fun getSavedOffset(): Long {
-        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this /* Activity context */)
-        val defaultValue = sharedPreferences.getLong(getString(R.string.offset_pref_name), 0L)
-
-        return defaultValue
-
-    }
-
-    fun setSavedOffset(offset : Long) {
-        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this /* Activity context */)
-
-        with (sharedPreferences.edit()) {
-            putLong(getString(R.string.offset_pref_name), offset)
-            commit()
-        }
-    }
-
-    fun getSavedSunsetTime(): Long {
-        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this /* Activity context */)
-        val retval = sharedPreferences.getLong(getString(R.string.sunset_time_pref_name), -1L)
-
-        return retval
-
-    }
-
-    fun setSavedSunsetTime(sunsetTime : Long) {
-        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this /* Activity context */)
-
-        with (sharedPreferences.edit()) {
-            putLong(getString(R.string.sunset_time_pref_name), sunsetTime)
-            commit()
-        }
-    }
-
-    fun setSavedSunsetTime(sunsetTime : String) {
-
-        val datetime : OffsetDateTime = OffsetDateTime.parse(sunsetTime)
-        val millis = datetime.toInstant().toEpochMilli()
-
-        setSavedSunsetTime(millis)
-    }
-
     private fun convertVelocityToOffset(velocity : Double) : Long {
         return (velocity / VELOCITY_SCALAR).toLong()
     }
 
-    fun getOffsetMinutes(): Long{
-        return (mOffset * OFFSET_TIME_SCALAR).toLong() / 60
-    }
-
     fun updateUI() {
 
-        updateNotificationTime()
-
-        val offsetTextView = findViewById<TextView>(R.id.offset_text)
-        offsetTextView.setText(mOffset.toString())
+        val sunsetTime = getSunsetTime(this)
+        val offset = getOffset(this)
+        val notificationTime = calculateNotificationTime(sunsetTime, offset)
 
         val sunsetTextView = findViewById<TextView>(R.id.sunset_time_text)
-        sunsetTextView.setText(epochToString(mSunsetTime))
+        sunsetTextView.setText(epochToString(sunsetTime))
+
+        val offsetTextView = findViewById<TextView>(R.id.offset_text)
+        offsetTextView.setText(offset.toString())
 
         val notificationTextView = findViewById<TextView>(R.id.notification_time_text)
-        notificationTextView.setText(epochToString(mNotificationTime))
+        notificationTextView.setText(epochToString(notificationTime))
     }
 
     private fun setupUpdateAlarm(){
@@ -138,30 +84,8 @@ class MainActivity : AppCompatActivity() {
         alarmMgr.setInexactRepeating(
             AlarmManager.RTC,
             Calendar.getInstance().getTimeInMillis(),
-            AlarmManager.INTERVAL_HALF_HOUR,
+            AlarmManager.INTERVAL_FIFTEEN_MINUTES,
             alarmIntent
-        )
-    }
-
-    private fun updateNotificationTime(){
-
-        val alarmMgr: AlarmManager = this.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        if(mNotificationIntent == null){
-            mNotificationIntent = Intent(this, NotificationAlarmReceiver::class.java).let { intent ->
-                PendingIntent.getBroadcast(this, 0, intent, 0)
-            }
-        }
-
-        mSunsetTime = getSavedSunsetTime()
-        val offsetMillis: Long = getOffsetMinutes() * 60 * 1000
-        val millis = mSunsetTime + offsetMillis
-        mNotificationTime = millis
-
-        alarmMgr.cancel(mNotificationIntent)
-        alarmMgr.setExact(
-            AlarmManager.RTC_WAKEUP,
-            mNotificationTime,
-            mNotificationIntent
         )
     }
 
@@ -261,7 +185,7 @@ class MainActivity : AppCompatActivity() {
                 // Add a user's movement to the tracker.
                 mVelocityTracker?.addMovement(event)
 
-                mTotalVelocity = mOffset * VELOCITY_SCALAR
+                mTotalVelocity = getOffset(this) * VELOCITY_SCALAR
             }
             MotionEvent.ACTION_MOVE -> {
                 mVelocityTracker?.apply {
@@ -278,7 +202,7 @@ class MainActivity : AppCompatActivity() {
 
                     mTotalVelocity += getYVelocity(pointerId)
 
-                    mOffset = convertVelocityToOffset(mTotalVelocity)
+                    setOffset(convertVelocityToOffset(mTotalVelocity))
                     updateUI()
                 }
             }
@@ -287,9 +211,12 @@ class MainActivity : AppCompatActivity() {
                 mVelocityTracker?.recycle()
                 mVelocityTracker = null
 
-                mOffset = convertVelocityToOffset(mTotalVelocity)
+                val offset = convertVelocityToOffset(mTotalVelocity)
+                setSavedOffset(offset, this)
+
                 updateUI()
-                setSavedOffset(mOffset)
+                updateNotificationAlarm(this, getNotificationTime(this))
+
             }
         }
         return true
@@ -297,7 +224,7 @@ class MainActivity : AppCompatActivity() {
 
 }
 
-var inst : MainActivity? = null
+private var inst : MainActivity? = null
 
 fun instance(): MainActivity? {
     return inst
@@ -306,4 +233,32 @@ fun instance(): MainActivity? {
 fun epochToString(millis: Long): String{
     val sunsetTime = Date(millis)
     return sunsetTime.toString()
+}
+
+fun getNotificationTime(context: Context): Long{
+    val sunsetTime = getSunsetTime(context)
+    val offset = getOffset(context)
+    return calculateNotificationTime(sunsetTime, offset)
+}
+
+fun calculateNotificationTime(sunsetTime: Long, offsetTime: Long): Long{
+    val offsetMinutes = (offsetTime* OFFSET_TIME_SCALAR).toLong() / 60
+    val offsetMillis: Long = offsetMinutes * 60 * 1000
+
+    return sunsetTime + offsetMillis
+}
+
+fun updateNotificationAlarm(context: Context, notificationTime: Long){
+
+    val alarmMgr: AlarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    val notificationIntent = Intent(context, NotificationAlarmReceiver::class.java).let { intent ->
+        PendingIntent.getBroadcast(context, 0, intent, 0)
+    }
+
+    alarmMgr.cancel(notificationIntent)
+    alarmMgr.setExactAndAllowWhileIdle(
+        AlarmManager.RTC_WAKEUP,
+        notificationTime,
+        notificationIntent
+    )
 }
