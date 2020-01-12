@@ -18,6 +18,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.app.JobIntentService
 import androidx.core.content.ContextCompat
 import java.util.*
+import kotlin.math.absoluteValue
 import kotlin.system.exitProcess
 
 
@@ -38,9 +39,8 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        inst = this
-
-        while(!checkPermissions());
+        while(!checkPermissions()){
+        }
 
         mTotalVelocity = 0.0
         loadCache(this)
@@ -58,7 +58,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun updateUI() {
-        Log.d("update", "Updating UI")
+
         val sunsetTime = getBestSunsetTime(this)
         val offset = getOffset(this)
         val notificationTime = calculateNotificationTime(sunsetTime, offset)
@@ -66,8 +66,11 @@ class MainActivity : AppCompatActivity() {
         val sunsetTextView = findViewById<TextView>(R.id.sunset_time_text)
         sunsetTextView.text = epochToString(sunsetTime)
 
+
+        val offsetSign = if (offset > 0) "+" else "-"
+        val offsetString = "%s%01d:%02d:%02d".format(offsetSign, (offset/60/60).absoluteValue, ((offset/60)%60).absoluteValue, (offset%60).absoluteValue)
         val offsetTextView = findViewById<TextView>(R.id.offset_text)
-        offsetTextView.text = offset.toString()
+        offsetTextView.text = offsetString
 
         val notificationTextView = findViewById<TextView>(R.id.notification_time_text)
         notificationTextView.text = epochToString(notificationTime)
