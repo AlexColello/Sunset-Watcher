@@ -31,6 +31,15 @@ class NotificationAlarmReceiver: BroadcastReceiver() {
 
         JobIntentService.enqueueWork(context, NotificationService::class.java, NOTIFICATION_JOB_ID, intent)
 
+        updateNotificationAlarm(context)
+
+        val main = instance()
+        if(main != null) {
+            main.updateUI()
+        } else {
+            Log.d("null", "Main is null in NotificationAlarmReceiver")
+        }
+
         resultCode = Activity.RESULT_OK
     }
 }

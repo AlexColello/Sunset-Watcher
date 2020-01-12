@@ -14,6 +14,7 @@ import org.json.JSONObject
 import java.io.PrintWriter
 import java.io.StringWriter
 
+
 class UpdateService : JobIntentService(){
 
     override fun onHandleWork(intent: Intent) {
@@ -22,7 +23,7 @@ class UpdateService : JobIntentService(){
 
     private fun updateSunsetTime(){
 
-        Log.d("update", "Updating sunset time.")
+        //Log.d("update", "Updating sunset time.")
 
         val fusedLocationClient: FusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
 
@@ -35,7 +36,9 @@ class UpdateService : JobIntentService(){
                             "location",
                             "Latitude: ${location.latitude} Longitude: ${location.longitude}"
                         )
-                        getSunsetTime(location.latitude, location.longitude)
+                        querySunsetTime(location.latitude, location.longitude, "yesterday")
+                        querySunsetTime(location.latitude, location.longitude, "today")
+                        querySunsetTime(location.latitude, location.longitude, "tomorrow")
                     } else {
                         Log.e("location", "Location is null")
                     }
@@ -51,7 +54,7 @@ class UpdateService : JobIntentService(){
             }
     }
 
-    private fun processQueryResponse(queryResultString : String){
+    private fun processQueryResponse(queryResultString : String, date: String){
 
         val queryResults = JSONObject(queryResultString)
 
@@ -59,12 +62,18 @@ class UpdateService : JobIntentService(){
             val result = queryResults.getJSONObject("results")
             val timeString = result.getString("sunset")
 
-            Log.d("request", "Found sunset time $timeString")
+            var prefString = ""
+            when(date) {
+                "yesterday" -> prefString = this.getString(R.string.sunset_yesterday_pref_name)
+                "today" -> prefString = this.getString(R.string.sunset_today_pref_name)
+                "tomorrow" -> prefString = this.getString(R.string.sunset_tomorrow_pref_name)
+                else -> Log.e("time", "Could not convert date string '$date' to preference string.")
+            }
 
-            val sunsetMillis = setSavedSunsetTime(timeString, this)
-            val offsetMillis = getOffset(this)
-            val notificationTime = calculateNotificationTime(sunsetMillis, offsetMillis)
-            updateNotificationAlarm(this, notificationTime)
+            Log.d("request", "Found sunset time $timeString for $date")
+
+            setSavedSunsetTime(timeString, this, prefString)
+            updateNotificationAlarm(this)
 
             val main = instance()
             main?.updateUI()
@@ -74,17 +83,17 @@ class UpdateService : JobIntentService(){
         }
     }
 
-    private fun getSunsetTime(latitude : Double, longitude: Double){
+    private fun querySunsetTime(latitude : Double, longitude: Double, date: String){
 
         // Instantiate the RequestQueue.
         val queue = Volley.newRequestQueue(this)
-        val url = "https://api.sunrise-sunset.org/json?lat=${latitude}&lng=${longitude}&date=today&formatted=0"
+        val url = "https://api.sunrise-sunset.org/json?lat=${latitude}&lng=${longitude}&date=$date&formatted=0"
 
         // Request a string response from the provided URL.
         val stringRequest = StringRequest(
             Request.Method.GET, url,
             Response.Listener<String> { response ->
-                processQueryResponse(response)
+                processQueryResponse(response, date)
             },
             Response.ErrorListener { Log.e("request","Request for \"${url}\" failed.")})
 

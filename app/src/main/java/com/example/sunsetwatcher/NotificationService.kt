@@ -64,5 +64,6 @@ class NotificationService : JobIntentService(){
             // notificationId is a unique int for each notification that you must define
             notify(0, builder.build())
         }
+
     }
 }

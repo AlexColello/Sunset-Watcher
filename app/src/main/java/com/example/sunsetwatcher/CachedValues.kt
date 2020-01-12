@@ -5,32 +5,42 @@ import androidx.preference.PreferenceManager
 import java.time.OffsetDateTime
 
 private var pOffset: Long = 0L
-private var pSunsetTime: Long = 0L
 private var pLoaded: Boolean = false
+private var pTimeMap: HashMap<String, Long> = hashMapOf()
 
 fun loadCache(context: Context){
     pOffset = getSavedOffset(context)
-    pSunsetTime = getSavedSunsetTime(context)
     pLoaded = true
+
+    val sunsetPreferences = listOf(
+        context.getString(R.string.sunset_yesterday_pref_name),
+        context.getString(R.string.sunset_today_pref_name),
+        context.getString(R.string.sunset_tomorrow_pref_name)
+    )
+
+    for(day in sunsetPreferences){
+        pTimeMap[day] = getSavedSunsetTime(context, day)
+    }
 }
 
-fun setSavedSunsetTime(sunsetTime : Long, context: Context) {
+fun setSavedSunsetTime(sunsetTime : Long, context: Context, name: String) {
     val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context /* Activity context */)
 
     with (sharedPreferences.edit()) {
-        putLong(context.getString(R.string.sunset_time_pref_name), sunsetTime)
+        putLong(name, sunsetTime)
         commit()
     }
 
-    pSunsetTime = sunsetTime
+    pTimeMap[name] = sunsetTime
+
 }
 
-fun setSavedSunsetTime(sunsetTime : String, context: Context): Long {
+fun setSavedSunsetTime(sunsetTime : String, context: Context, name: String): Long {
 
-    val datetime : OffsetDateTime = OffsetDateTime.parse(sunsetTime)
-    val millis = datetime.toInstant().toEpochMilli()
+    val datetime: OffsetDateTime = OffsetDateTime.parse(sunsetTime)
+    val millis: Long = datetime.toInstant().toEpochMilli()
 
-    setSavedSunsetTime(millis, context)
+    setSavedSunsetTime(millis, context, name)
 
     return millis
 }
@@ -53,9 +63,9 @@ fun setSavedOffset(offset : Long, context: Context) {
     pOffset = offset
 }
 
-private fun getSavedSunsetTime(context: Context): Long {
+private fun getSavedSunsetTime(context: Context, name: String): Long {
     val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context /* Activity context */)
-    val retval = sharedPreferences.getLong(context.getString(R.string.sunset_time_pref_name), -1L)
+    val retval = sharedPreferences.getLong(name, -1L)
 
     return retval
 }
@@ -67,11 +77,11 @@ fun getOffset(context: Context): Long{
     return pOffset
 }
 
-fun getSunsetTime(context: Context): Long{
+fun getSunsetTime(context: Context, name: String): Long{
     if(!pLoaded){
         loadCache(context)
     }
-    return pSunsetTime
+    return pTimeMap[name]!!
 }
 
 fun setOffset(offset: Long){

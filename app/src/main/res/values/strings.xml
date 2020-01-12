@@ -5,5 +5,7 @@
     <string name="channel_name">Sunset Watcher</string>
     <string name="channel_description">Watch the sunset!</string>
     <string name="channel_id">SunsetWatcher</string>
-    <string name="sunset_time_pref_name">SunsetTime</string>
+    <string name="sunset_today_pref_name">SunsetToday</string>
+    <string name="sunset_yesterday_pref_name">SunsetYesterday</string>
+    <string name="sunset_tomorrow_pref_name">SunsetTomorrow</string>
 </resources>

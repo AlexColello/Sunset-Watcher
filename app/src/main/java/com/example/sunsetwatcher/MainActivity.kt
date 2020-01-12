@@ -20,7 +20,6 @@ import androidx.core.content.ContextCompat
 import java.util.*
 import kotlin.system.exitProcess
 
-val OFFSET_TIME_SCALAR: Double = 1.0
 
 class MainActivity : AppCompatActivity() {
 
@@ -38,6 +37,8 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        inst = this
 
         while(!checkPermissions());
 
@@ -57,19 +58,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun updateUI() {
-
-        val sunsetTime = getSunsetTime(this)
+        Log.d("update", "Updating UI")
+        val sunsetTime = getBestSunsetTime(this)
         val offset = getOffset(this)
         val notificationTime = calculateNotificationTime(sunsetTime, offset)
 
         val sunsetTextView = findViewById<TextView>(R.id.sunset_time_text)
-        sunsetTextView.setText(epochToString(sunsetTime))
+        sunsetTextView.text = epochToString(sunsetTime)
 
         val offsetTextView = findViewById<TextView>(R.id.offset_text)
-        offsetTextView.setText(offset.toString())
+        offsetTextView.text = offset.toString()
 
         val notificationTextView = findViewById<TextView>(R.id.notification_time_text)
-        notificationTextView.setText(epochToString(notificationTime))
+        notificationTextView.text = epochToString(notificationTime)
     }
 
     private fun setupUpdateAlarm(){
@@ -83,7 +84,7 @@ class MainActivity : AppCompatActivity() {
         // constants--in this case, AlarmManager.INTERVAL_DAY.
         alarmMgr.setInexactRepeating(
             AlarmManager.RTC,
-            Calendar.getInstance().getTimeInMillis(),
+            Calendar.getInstance().timeInMillis,
             AlarmManager.INTERVAL_FIFTEEN_MINUTES,
             alarmIntent
         )
@@ -215,7 +216,7 @@ class MainActivity : AppCompatActivity() {
                 setSavedOffset(offset, this)
 
                 updateUI()
-                updateNotificationAlarm(this, getNotificationTime(this))
+                updateNotificationAlarm(this)
 
             }
         }
@@ -235,17 +236,43 @@ fun epochToString(millis: Long): String{
     return sunsetTime.toString()
 }
 
+fun getBestSunsetTime(context: Context): Long{
+    val yesterday = getSunsetTime(context, context.getString(R.string.sunset_yesterday_pref_name))
+    val today = getSunsetTime(context, context.getString(R.string.sunset_today_pref_name))
+    val tomorrow = getSunsetTime(context, context.getString(R.string.sunset_tomorrow_pref_name))
+    val offsetMillis = getOffset(context)
+
+    val currentTime = Calendar.getInstance().timeInMillis
+
+    val yesterdayAlarm = calculateNotificationTime(yesterday, offsetMillis)
+    val todayAlarm = calculateNotificationTime(today, offsetMillis)
+    val tomorrowAlarm = calculateNotificationTime(tomorrow, offsetMillis)
+
+    if(yesterdayAlarm > currentTime){
+        return yesterday
+    } else if (todayAlarm > currentTime){
+        return today
+    } else if (tomorrowAlarm > currentTime){
+        return tomorrow
+    } else {
+        Log.e("time", "None of the possible alarm times are in the future")
+        return today
+    }
+}
+
 fun getNotificationTime(context: Context): Long{
-    val sunsetTime = getSunsetTime(context)
+    val sunsetTime = getBestSunsetTime(context)
     val offset = getOffset(context)
     return calculateNotificationTime(sunsetTime, offset)
 }
 
 fun calculateNotificationTime(sunsetTime: Long, offsetTime: Long): Long{
-    val offsetMinutes = (offsetTime* OFFSET_TIME_SCALAR).toLong() / 60
-    val offsetMillis: Long = offsetMinutes * 60 * 1000
-
+    val offsetMillis: Long = offsetTime * 1000
     return sunsetTime + offsetMillis
+}
+
+fun updateNotificationAlarm(context: Context){
+    updateNotificationAlarm(context, getNotificationTime(context))
 }
 
 fun updateNotificationAlarm(context: Context, notificationTime: Long){
