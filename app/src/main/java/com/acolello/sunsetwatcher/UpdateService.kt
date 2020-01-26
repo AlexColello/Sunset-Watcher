@@ -1,4 +1,4 @@
-package com.example.sunsetwatcher
+package com.acolello.sunsetwatcher
 
 import android.content.Intent
 import android.location.Location

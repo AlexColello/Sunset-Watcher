@@ -1,4 +1,4 @@
-package com.example.sunsetwatcher
+package com.acolello.sunsetwatcher
 
 import android.content.Context
 import androidx.preference.PreferenceManager
