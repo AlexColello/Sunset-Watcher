@@ -30,6 +30,9 @@ class MainActivity : AppCompatActivity() {
     val BACKGROUND_LOCATION_PERMISSION_REQUEST = 666
     val VELOCITY_SCALAR: Double = 100.0
 
+    private lateinit var mainDrawableView: MainView
+
+
     override fun onStart(){
         super.onStart()
         inst = this
@@ -37,7 +40,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+
+        mainDrawableView = MainView(this)
+
+        setContentView(mainDrawableView)
+
 
         while(!checkPermissions()){
         }
@@ -58,22 +65,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun updateUI() {
-
-        val sunsetTime = getBestSunsetTime(this)
-        val offset = getOffset(this)
-        val notificationTime = calculateNotificationTime(sunsetTime, offset)
-
-        val sunsetTextView = findViewById<TextView>(R.id.sunset_time_text)
-        sunsetTextView.text = epochToString(sunsetTime)
-
-
-        val offsetSign = if (offset > 0) "+" else "-"
-        val offsetString = "%s%01d:%02d:%02d".format(offsetSign, (offset/60/60).absoluteValue, ((offset/60)%60).absoluteValue, (offset%60).absoluteValue)
-        val offsetTextView = findViewById<TextView>(R.id.offset_text)
-        offsetTextView.text = offsetString
-
-        val notificationTextView = findViewById<TextView>(R.id.notification_time_text)
-        notificationTextView.text = epochToString(notificationTime)
+        mainDrawableView.invalidate()
     }
 
     private fun setupUpdateAlarm(){

@@ -27,7 +27,7 @@ class NotificationAlarmReceiver: BroadcastReceiver() {
             alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
         }
         val ringtone = RingtoneManager.getRingtone(context, alarmUri)
-        ringtone.play()
+        //ringtone.play()
 
         JobIntentService.enqueueWork(context, NotificationService::class.java, NOTIFICATION_JOB_ID, intent)
 
