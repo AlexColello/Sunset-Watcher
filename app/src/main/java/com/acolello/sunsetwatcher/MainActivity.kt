@@ -62,18 +62,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun updateUI() {
-        val sunsetTime = getBestSunsetTime(this)
-        val offset = getOffset(this)
-        val notificationTime = calculateNotificationTime(sunsetTime, offset)
 
-        //val sunsetTextView = findViewById<TextView>(R.id.sunset_time_text)
-        //sunsetTextView.text = epochToString(sunsetTime)
+        val mainView = findViewById<MainView>(R.id.main_view)
+        mainView.invalidate()
 
-
-        val offsetSign = if (offset > 0) "+" else "-"
-        val offsetString : String = "%s%01d:%02d:%02d".format(offsetSign, (offset/60/60).absoluteValue, ((offset/60)%60).absoluteValue, (offset%60).absoluteValue)
-        val sunsetTimeText = findViewById<TextView>(R.id.sunset_time_text)
-        sunsetTimeText.text = offsetString
     }
 
     private fun setupUpdateAlarm(){
@@ -93,7 +85,7 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    fun checkPermissions(): Boolean {
+    private fun checkPermissions(): Boolean {
 
         var passed = true
 
