@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.coordinatorlayout.widget.CoordinatorLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -8,6 +9,33 @@
 
     <!--<include layout="@layout/content_main" />-->
 
+    <ImageView
+        android:id="@+id/background_gradient"
+        android:layout_width="fill_parent"
+        android:layout_height="fill_parent"
+        android:gravity="center"
+        android:src="@drawable/background_gradient"
+        app:layout_anchorGravity="top|center" />
+
+    <ImageView
+        android:id="@+id/sun"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:src="@drawable/sun"
+        android:translationY="40dp"
+        app:layout_anchorGravity="top|center" />
+
+    <ImageView
+        android:id="@+id/ground"
+        android:layout_width="wrap_content"
+        android:layout_height="800dp"
+        android:layout_gravity="bottom|center_horizontal"
+        android:scaleType="center"
+        android:src="@drawable/ground"
+        android:translationY="725dp" />
+
+    <!--
     <TextView
         android:id="@+id/offset_text"
         android:layout_height="wrap_content"
@@ -15,17 +43,21 @@
         android:layout_gravity="center"/>
 
     <TextView
-        android:id="@+id/sunset_time_text"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:translationY="-50dp" />
-
-    <TextView
         android:id="@+id/notification_time_text"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
         android:translationY="50dp" />
+    -->
+
+    <TextView
+        android:id="@+id/sunset_time_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:translationY="-25dp"
+        android:text="@string/default_sunset_time_text"
+        android:textSize="45sp"
+        android:textColor="#FFFFFF"/>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

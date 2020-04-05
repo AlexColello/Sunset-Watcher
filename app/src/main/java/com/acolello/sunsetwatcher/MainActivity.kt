@@ -41,10 +41,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        mainDrawableView = MainView(this)
-
-        setContentView(mainDrawableView)
-
+        setContentView(R.layout.activity_main)
 
         while(!checkPermissions()){
         }
@@ -65,7 +62,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun updateUI() {
-        mainDrawableView.invalidate()
+        val sunsetTime = getBestSunsetTime(this)
+        val offset = getOffset(this)
+        val notificationTime = calculateNotificationTime(sunsetTime, offset)
+
+        //val sunsetTextView = findViewById<TextView>(R.id.sunset_time_text)
+        //sunsetTextView.text = epochToString(sunsetTime)
+
+
+        val offsetSign = if (offset > 0) "+" else "-"
+        val offsetString : String = "%s%01d:%02d:%02d".format(offsetSign, (offset/60/60).absoluteValue, ((offset/60)%60).absoluteValue, (offset%60).absoluteValue)
+        val sunsetTimeText = findViewById<TextView>(R.id.sunset_time_text)
+        sunsetTimeText.text = offsetString
     }
 
     private fun setupUpdateAlarm(){

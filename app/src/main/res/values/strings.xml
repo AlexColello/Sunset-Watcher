@@ -8,4 +8,5 @@
     <string name="sunset_today_pref_name">SunsetToday</string>
     <string name="sunset_yesterday_pref_name">SunsetYesterday</string>
     <string name="sunset_tomorrow_pref_name">SunsetTomorrow</string>
+    <string name="default_sunset_time_text">+0:00:00</string>
 </resources>

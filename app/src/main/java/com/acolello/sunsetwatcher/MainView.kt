@@ -10,24 +10,11 @@ import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.coordinatorlayout.widget.CoordinatorLayout
 import kotlin.math.absoluteValue
 
 class MainView(context: Context?) : View(context) {
 
-    private val drawable: ShapeDrawable = run {
-        val x = 10
-        val y = 10
-        val width = 300
-        val height = 50
-        //contentDescription = context.resources.getString(R.string.my_view_desc)
-
-        ShapeDrawable(OvalShape()).apply {
-            // If the color isn't set, the shape uses black as the default.
-            paint.color = 0xff74AC23.toInt()
-            // If the bounds aren't set, the shape can't be drawn.
-            setBounds(x, y, x + width, y + height)
-        }
-    }
 
     private val mainLayout: ConstraintLayout = ConstraintLayout(context)
 
@@ -46,7 +33,7 @@ class MainView(context: Context?) : View(context) {
     private fun drawText(canvas: Canvas){
         val sunsetTime = getBestSunsetTime(context)
         val offset = getOffset(context)
-        val notificationTime = calculateNotificationTime(sunsetTime, offset)
+        //val notificationTime = calculateNotificationTime(sunsetTime, offset)
 
         //val sunsetTextView = findViewById<TextView>(R.id.sunset_time_text)
         //sunsetTextView.text = epochToString(sunsetTime)
