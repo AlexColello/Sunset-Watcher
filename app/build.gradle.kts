@@ -38,7 +38,8 @@ dependencies {
     implementation(libs.material)
     implementation(libs.androidx.preference.ktx)
     implementation(libs.play.services.location)
-    implementation(libs.volley)
+    implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.kotlinx.coroutines.play.services)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
