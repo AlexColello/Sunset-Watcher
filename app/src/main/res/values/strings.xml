@@ -8,7 +8,15 @@
     <string name="sunset_today_pref_name">SunsetToday</string>
     <string name="sunset_yesterday_pref_name">SunsetYesterday</string>
     <string name="sunset_tomorrow_pref_name">SunsetTomorrow</string>
-    <string name="default_sunset_time_text">+0:00:00</string>
+    <string name="at_sunset">At sunset</string>
+    <string name="before_sunset">before sunset</string>
+    <string name="after_sunset">after sunset</string>
+    <string name="sun_on_horizon">sun on the horizon</string>
+    <string name="reminder_today">Reminder today at %1$s</string>
+    <string name="reminder_tomorrow">Reminder tomorrow at %1$s</string>
+    <string name="reminder_on">Reminder %1$s</string>
+    <string name="finding_sunset">Finding your sunset…</string>
+    <string name="slide_hint">Slide up or down to change when you\'re reminded</string>
     <string name="asked_background_location_pref_name">AskedBackgroundLocation</string>
     <string name="asked_exact_alarm_pref_name">AskedExactAlarm</string>
 

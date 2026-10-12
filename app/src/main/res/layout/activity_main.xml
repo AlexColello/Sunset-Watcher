@@ -1,65 +1,55 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.acolello.sunsetwatcher.MainView
+<FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/main_view"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".MainActivity"
-    >
+    tools:context=".MainActivity">
 
-    <!--<include layout="@layout/content_main" />-->
+    <com.acolello.sunsetui.SunsetSceneView
+        android:id="@+id/sunset_scene"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
 
-    <ImageView
-        android:id="@+id/background_gradient"
-        android:layout_width="fill_parent"
-        android:layout_height="fill_parent"
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="112dp"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/offset_text"
+            style="@style/SceneText"
+            android:textSize="52sp"
+            tools:text="45 min" />
+
+        <TextView
+            android:id="@+id/offset_caption"
+            style="@style/SceneText"
+            android:alpha="0.9"
+            android:textSize="22sp"
+            tools:text="before sunset" />
+
+        <TextView
+            android:id="@+id/reminder_text"
+            style="@style/SceneText"
+            android:layout_marginTop="16dp"
+            android:alpha="0.8"
+            android:textSize="16sp"
+            tools:text="Reminder today at 5:38 PM" />
+    </LinearLayout>
+
+    <TextView
+        style="@style/SceneText"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginHorizontal="32dp"
+        android:layout_marginBottom="64dp"
+        android:alpha="0.6"
         android:gravity="center"
-        android:src="@drawable/background_gradient"
-        app:layout_anchorGravity="top|center" />
+        android:importantForAccessibility="no"
+        android:text="@string/slide_hint"
+        android:textSize="14sp" />
 
-    <ImageView
-        android:id="@+id/sun"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|center_horizontal"
-        android:src="@drawable/sun"
-        android:translationY="40dp"
-        app:layout_anchorGravity="top|center" />
-
-    <ImageView
-        android:id="@+id/ground"
-        android:layout_width="wrap_content"
-        android:layout_height="800dp"
-        android:layout_gravity="bottom|center_horizontal"
-        android:scaleType="center"
-        android:src="@drawable/ground"
-        android:translationY="725dp" />
-
-    <!--
-    <TextView
-        android:id="@+id/offset_text"
-        android:layout_height="wrap_content"
-        android:layout_width="wrap_content"
-        android:layout_gravity="center"/>
-
-    <TextView
-        android:id="@+id/notification_time_text"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:translationY="50dp" />
-    -->
-
-    <TextView
-        android:id="@+id/sunset_time_text"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:translationY="-25dp"
-        android:text="@string/default_sunset_time_text"
-        android:textSize="45sp"
-        android:textColor="#FFFFFF"/>
-
-</com.acolello.sunsetwatcher.MainView>
+</FrameLayout>
