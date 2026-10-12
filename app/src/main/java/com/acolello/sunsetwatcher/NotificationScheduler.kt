@@ -37,15 +37,19 @@ fun chooseSunsetTime(sunsets: List<Long>, offsetSeconds: Long, now: Long): Long?
     return latest + (behind / DAY_MILLIS + 1) * DAY_MILLIS
 }
 
-fun getBestSunsetTime(context: Context): Long? {
-    val sunsets = listOf(
+private fun getSunsetTimes(context: Context): List<Long> =
+    listOf(
         R.string.sunset_yesterday_pref_name,
         R.string.sunset_today_pref_name,
         R.string.sunset_tomorrow_pref_name
     ).map { getSunsetTime(context, context.getString(it)) }
 
-    return chooseSunsetTime(sunsets, getOffset(context), System.currentTimeMillis())
-}
+fun getBestSunsetTime(context: Context): Long? =
+    chooseSunsetTime(getSunsetTimes(context), getOffset(context), System.currentTimeMillis())
+
+// The next sunset, or the one happening right now.
+fun getUpcomingSunsetTime(context: Context): Long? =
+    chooseSunsetTime(getSunsetTimes(context), 0, System.currentTimeMillis())
 
 fun getNotificationTime(context: Context): Long? {
     val sunsetTime = getBestSunsetTime(context) ?: return null

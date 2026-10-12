@@ -9,22 +9,30 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.appcompat.app.AppCompatActivity
-import android.view.MotionEvent
-import android.view.VelocityTracker
+import android.graphics.Color
+import android.text.format.DateFormat
+import android.text.format.DateUtils
 import android.util.Log
+import android.widget.TextView
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.preference.PreferenceManager
+import com.acolello.sunsetui.SunsetSceneView
+import java.util.Date
+import kotlin.math.roundToInt
 
 
 class MainActivity : AppCompatActivity() {
 
-    var mTotalVelocity = 0.0
-    private var mVelocityTracker: VelocityTracker? = null
-    val VELOCITY_SCALAR: Double = 100.0
+    private lateinit var scene: SunsetSceneView
+    private lateinit var offsetText: TextView
+    private lateinit var offsetCaption: TextView
+    private lateinit var reminderText: TextView
 
     // Location and notifications are requested together. Background location has to be
     // requested on its own afterwards, Android 11+ ignores it when bundled with the others.
@@ -66,10 +74,28 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Draw the sky behind the status and navigation bars, with light icons over it.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT)
+        )
         setContentView(R.layout.activity_main)
 
-        mTotalVelocity = 0.0
+        scene = findViewById(R.id.sunset_scene)
+        offsetText = findViewById(R.id.offset_text)
+        offsetCaption = findViewById(R.id.offset_caption)
+        reminderText = findViewById(R.id.reminder_text)
+
         loadCache(this)
+        scene.setOffset((getOffset(this) / 60.0).roundToInt())
+        scene.onOffsetChanged = { minutes, settled ->
+            setOffset(minutes * 60L)
+            updateText()
+            if (settled) {
+                setSavedOffset(minutes * 60L, this)
+                updateNotificationAlarm(this)
+            }
+        }
         updateUI()
 
         requestForegroundPermissions()
@@ -81,15 +107,47 @@ class MainActivity : AppCompatActivity() {
         startLocationTracking(this)
     }
 
-    private fun convertVelocityToOffset(velocity : Double) : Long {
-        return (velocity / VELOCITY_SCALAR).toLong()
+    fun updateUI() {
+        scene.elevationAt = sunElevationModel()
+        updateText()
     }
 
-    fun updateUI() {
+    // The sun's elevation at each offset from the upcoming sunset where the user is. Shifted so
+    // it's exactly SUNSET_ELEVATION_DEGREES at the sunset time from the API, which can differ by
+    // a fraction of a degree, so the sun always touches the horizon at "At sunset".
+    private fun sunElevationModel(): ((Float) -> Double)? {
+        val location = getSavedLocation(this) ?: return null
+        val sunset = getUpcomingSunsetTime(this) ?: return null
+        val elevationAt = { time: Long -> solarElevation(time, location.latitude, location.longitude) }
+        val correction = SUNSET_ELEVATION_DEGREES - elevationAt(sunset)
+        return { minutes -> elevationAt(sunset + (minutes * 60_000).toLong()) + correction }
+    }
 
-        val mainView = findViewById<MainView>(R.id.main_view)
-        mainView.invalidate()
+    private fun updateText() {
+        val minutes = (getOffset(this) / 60.0).roundToInt()
 
+        offsetText.text = if (minutes == 0) getString(R.string.at_sunset) else formatDuration(minutes)
+        offsetCaption.text = when {
+            minutes < 0 -> getString(R.string.before_sunset)
+            minutes > 0 -> getString(R.string.after_sunset)
+            else -> getString(R.string.sun_on_horizon)
+        }
+
+        val notificationTime = getNotificationTime(this)
+        reminderText.text = if (notificationTime == null) {
+            getString(R.string.finding_sunset)
+        } else {
+            val time = DateFormat.getTimeFormat(this).format(Date(notificationTime))
+            when {
+                DateUtils.isToday(notificationTime) -> getString(R.string.reminder_today, time)
+                DateUtils.isToday(notificationTime - DateUtils.DAY_IN_MILLIS) -> getString(R.string.reminder_tomorrow, time)
+                else -> getString(R.string.reminder_on, DateUtils.formatDateTime(this, notificationTime,
+                    DateUtils.FORMAT_SHOW_WEEKDAY or DateUtils.FORMAT_SHOW_TIME))
+            }
+        }
+
+        scene.contentDescription = listOf(offsetText.text, offsetCaption.text, reminderText.text)
+            .joinToString(", ")
     }
 
     private fun hasPermission(permission: String): Boolean {
@@ -167,54 +225,4 @@ class MainActivity : AppCompatActivity() {
             .setCancelable(false)
             .show()
     }
-
-    override fun onTouchEvent(event: MotionEvent): Boolean {
-
-        when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                // Reset the velocity tracker back to its initial state.
-                mVelocityTracker?.clear()
-                // If necessary retrieve a new VelocityTracker object to watch the
-                // velocity of a motion.
-                mVelocityTracker = mVelocityTracker ?: VelocityTracker.obtain()
-                // Add a user's movement to the tracker.
-                mVelocityTracker?.addMovement(event)
-
-                mTotalVelocity = getOffset(this) * VELOCITY_SCALAR
-            }
-            MotionEvent.ACTION_MOVE -> {
-                mVelocityTracker?.apply {
-                    val pointerId: Int = event.getPointerId(event.actionIndex)
-                    addMovement(event)
-                    // When you want to determine the velocity, call
-                    // computeCurrentVelocity(). Then call getXVelocity()
-                    // and getYVelocity() to retrieve the velocity for each pointer ID.
-                    computeCurrentVelocity(1000)
-                    // Log velocity of pixels per second
-                    // Best practice to use VelocityTrackerCompat where possible.
-                    //Log.d("velocity", "X velocity: ${getXVelocity(pointerId)}")
-                    //Log.d("velocity", "Y velocity: ${getYVelocity(pointerId)}")
-
-                    mTotalVelocity += getYVelocity(pointerId)
-
-                    setOffset(convertVelocityToOffset(mTotalVelocity))
-                    updateUI()
-                }
-            }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                // Return a VelocityTracker object back to be re-used by others.
-                mVelocityTracker?.recycle()
-                mVelocityTracker = null
-
-                val offset = convertVelocityToOffset(mTotalVelocity)
-                setSavedOffset(offset, this)
-
-                updateUI()
-                updateNotificationAlarm(this)
-
-            }
-        }
-        return true
-    }
-
 }
