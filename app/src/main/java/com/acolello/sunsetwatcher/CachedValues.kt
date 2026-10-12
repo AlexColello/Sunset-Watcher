@@ -2,11 +2,15 @@ package com.acolello.sunsetwatcher
 
 import android.content.Context
 import androidx.preference.PreferenceManager
+import android.location.Location
+import androidx.core.content.edit
 import java.time.OffsetDateTime
+import java.util.concurrent.ConcurrentHashMap
 
 private var pOffset: Long = 0L
 private var pLoaded: Boolean = false
-private var pTimeMap: HashMap<String, Long> = hashMapOf()
+// Written from background workers and read from the UI thread.
+private val pTimeMap = ConcurrentHashMap<String, Long>()
 
 fun loadCache(context: Context){
     pOffset = getSavedOffset(context)
@@ -86,4 +90,25 @@ fun getSunsetTime(context: Context, name: String): Long{
 
 fun setOffset(offset: Long){
     pOffset = offset
+}
+
+private const val LATITUDE_PREF = "SunsetLatitude"
+private const val LONGITUDE_PREF = "SunsetLongitude"
+
+// The location the saved sunset times were looked up for.
+fun getSavedLocation(context: Context): Location? {
+    val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
+    if (!sharedPreferences.contains(LATITUDE_PREF)) return null
+
+    return Location("saved").apply {
+        latitude = Double.fromBits(sharedPreferences.getLong(LATITUDE_PREF, 0L))
+        longitude = Double.fromBits(sharedPreferences.getLong(LONGITUDE_PREF, 0L))
+    }
+}
+
+fun setSavedLocation(context: Context, latitude: Double, longitude: Double) {
+    PreferenceManager.getDefaultSharedPreferences(context).edit {
+        putLong(LATITUDE_PREF, latitude.toRawBits())
+        putLong(LONGITUDE_PREF, longitude.toRawBits())
+    }
 }

@@ -2,9 +2,8 @@ package com.acolello.sunsetwatcher
 
 import android.Manifest
 import android.app.AlarmManager
-import android.app.PendingIntent
-import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -15,12 +14,10 @@ import android.view.VelocityTracker
 import android.util.Log
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
-import androidx.core.app.JobIntentService
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.preference.PreferenceManager
-import java.util.*
 
 
 class MainActivity : AppCompatActivity() {
@@ -46,16 +43,23 @@ class MainActivity : AppCompatActivity() {
     private val backgroundPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             Log.d("permissions", "ACCESS_BACKGROUND_LOCATION granted: $granted")
+            // Re-register so updates start arriving while the app is closed.
+            if (granted) startLocationTracking(this)
             requestExactAlarms()
         }
 
+    // Redraw when the background worker saves new sunset times. Kept in a field because
+    // SharedPreferences only holds a weak reference to its listeners.
+    private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> updateUI() }
+
     override fun onStart(){
         super.onStart()
-        inst = this
+        PreferenceManager.getDefaultSharedPreferences(this).registerOnSharedPreferenceChangeListener(preferenceListener)
+        updateUI()
     }
 
     override fun onStop() {
-        inst = null
+        PreferenceManager.getDefaultSharedPreferences(this).unregisterOnSharedPreferenceChangeListener(preferenceListener)
         super.onStop()
     }
 
@@ -72,10 +76,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startUpdates() {
-        val updateIntent = Intent(this, UpdateService::class.java)
-        JobIntentService.enqueueWork(this, UpdateService::class.java, UPDATE_JOB_ID, updateIntent)
-
-        setupUpdateAlarm()
+        schedulePeriodicUpdates(this)
+        updateSunsetTimesNow(this)
+        startLocationTracking(this)
     }
 
     private fun convertVelocityToOffset(velocity : Double) : Long {
@@ -87,23 +90,6 @@ class MainActivity : AppCompatActivity() {
         val mainView = findViewById<MainView>(R.id.main_view)
         mainView.invalidate()
 
-    }
-
-    private fun setupUpdateAlarm(){
-
-        val alarmMgr: AlarmManager = this.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val alarmIntent: PendingIntent = Intent(this, UpdateAlarmReceiver::class.java).let { intent ->
-            PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
-        }
-
-        // With setInexactRepeating(), you have to use one of the AlarmManager interval
-        // constants--in this case, AlarmManager.INTERVAL_DAY.
-        alarmMgr.setInexactRepeating(
-            AlarmManager.RTC,
-            Calendar.getInstance().timeInMillis,
-            AlarmManager.INTERVAL_FIFTEEN_MINUTES,
-            alarmIntent
-        )
     }
 
     private fun hasPermission(permission: String): Boolean {
@@ -231,87 +217,4 @@ class MainActivity : AppCompatActivity() {
         return true
     }
 
-}
-
-private var inst : MainActivity? = null
-
-fun instance(): MainActivity? {
-    return inst
-}
-
-fun epochToString(millis: Long): String{
-    val sunsetTime = Date(millis)
-    return sunsetTime.toString()
-}
-
-fun getBestSunsetTime(context: Context): Long{
-    val yesterday = getSunsetTime(context, context.getString(R.string.sunset_yesterday_pref_name))
-    val today = getSunsetTime(context, context.getString(R.string.sunset_today_pref_name))
-    val tomorrow = getSunsetTime(context, context.getString(R.string.sunset_tomorrow_pref_name))
-    val offsetMillis = getOffset(context)
-
-    val currentTime = Calendar.getInstance().timeInMillis
-
-    val yesterdayAlarm = calculateNotificationTime(yesterday, offsetMillis)
-    val todayAlarm = calculateNotificationTime(today, offsetMillis)
-    val tomorrowAlarm = calculateNotificationTime(tomorrow, offsetMillis)
-
-    if(yesterdayAlarm > currentTime){
-        return yesterday
-    } else if (todayAlarm > currentTime){
-        return today
-    } else if (tomorrowAlarm > currentTime){
-        return tomorrow
-    } else {
-        Log.e("time", "None of the possible alarm times are in the future")
-        return today
-    }
-}
-
-fun getNotificationTime(context: Context): Long{
-    val sunsetTime = getBestSunsetTime(context)
-    val offset = getOffset(context)
-    return calculateNotificationTime(sunsetTime, offset)
-}
-
-fun calculateNotificationTime(sunsetTime: Long, offsetTime: Long): Long{
-    val offsetMillis: Long = offsetTime * 1000
-    return sunsetTime + offsetMillis
-}
-
-fun updateNotificationAlarm(context: Context){
-    updateNotificationAlarm(context, getNotificationTime(context))
-}
-
-fun updateNotificationAlarm(context: Context, notificationTime: Long){
-
-    val alarmMgr: AlarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-    val notificationIntent = Intent(context, NotificationAlarmReceiver::class.java).let { intent ->
-        PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_IMMUTABLE)
-    }
-
-    alarmMgr.cancel(notificationIntent)
-
-    // Without sunset data the "best" time is in the past, and an alarm in the past fires
-    // immediately and then reschedules itself again, spamming notifications.
-    if (notificationTime <= System.currentTimeMillis()) {
-        Log.w("alarm", "Not scheduling notification for past time ${epochToString(notificationTime)}")
-        return
-    }
-
-    // Exact alarms need the user to allow "Alarms & reminders" on Android 12+. Fall back to an
-    // inexact alarm, which may arrive a few minutes late, if they haven't.
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmMgr.canScheduleExactAlarms()) {
-        alarmMgr.setExactAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            notificationTime,
-            notificationIntent
-        )
-    } else {
-        alarmMgr.setAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            notificationTime,
-            notificationIntent
-        )
-    }
 }
