@@ -1,15 +1,19 @@
 package com.acolello.sunsetwatcher
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.location.Location
 import android.util.Log
 import androidx.core.app.JobIntentService
+import androidx.core.content.ContextCompat
 import com.android.volley.Request
 import com.android.volley.Response
 import com.android.volley.toolbox.StringRequest
 import com.android.volley.toolbox.Volley
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import org.json.JSONObject
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -25,12 +29,23 @@ class UpdateService : JobIntentService(){
 
         //Log.d("update", "Updating sunset time.")
 
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED) {
+            Log.e("location", "Location permission not granted")
+            return
+        }
+
         val fusedLocationClient: FusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
 
         fusedLocationClient.lastLocation
+            .continueWithTask { task ->
+                // The last known location is null if nothing on the device has asked for a
+                // location recently (e.g. after a reboot), so ask for a fresh one instead.
+                if (task.result != null) task
+                else fusedLocationClient.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null)
+            }
             .addOnSuccessListener { location: Location? ->
                 run {
-                    // Got last known location. In some rare situations this can be null.
                     if (location != null) {
                         Log.d(
                             "location",

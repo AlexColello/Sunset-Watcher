@@ -1,15 +1,18 @@
 package com.acolello.sunsetwatcher
 
+import android.Manifest
 import android.app.NotificationChannel
 import android.content.Intent
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import androidx.core.app.JobIntentService
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 
 
 class NotificationService : JobIntentService(){
@@ -43,7 +46,7 @@ class NotificationService : JobIntentService(){
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
-        val pendingIntent: PendingIntent = PendingIntent.getActivity(this, 0, intent, 0)
+        val pendingIntent: PendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
 
         val id = getString(R.string.channel_id)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
@@ -59,6 +62,13 @@ class NotificationService : JobIntentService(){
             // Set the intent that will fire when the user taps the notification
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
+
+        // Android 13+ requires the user to grant POST_NOTIFICATIONS.
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Log.w("notification", "Notification permission not granted")
+            return
+        }
 
         with(NotificationManagerCompat.from(this)) {
             // notificationId is a unique int for each notification that you must define

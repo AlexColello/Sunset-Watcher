@@ -7,7 +7,7 @@ import android.content.Intent
 import android.util.Log
 import androidx.core.app.JobIntentService
 
-const val UPDATE_JOB_ID = 1001
+const val UPDATE_JOB_ID = 1002
 
 class UpdateAlarmReceiver: BroadcastReceiver() {
 
