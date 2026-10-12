@@ -8,34 +8,55 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.appcompat.app.AppCompatActivity
 import android.view.MotionEvent
 import android.view.VelocityTracker
 import android.util.Log
-import android.widget.TextView
-
-import androidx.core.app.ActivityCompat
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.core.app.JobIntentService
 import androidx.core.content.ContextCompat
+import androidx.core.content.edit
+import androidx.core.net.toUri
+import androidx.preference.PreferenceManager
 import java.util.*
-import kotlin.math.absoluteValue
-import kotlin.system.exitProcess
 
 
 class MainActivity : AppCompatActivity() {
 
     var mTotalVelocity = 0.0
     private var mVelocityTracker: VelocityTracker? = null
-    val COARSE_LOCATION_PERMISSION_REQUEST = 777
-    val BACKGROUND_LOCATION_PERMISSION_REQUEST = 666
     val VELOCITY_SCALAR: Double = 100.0
 
-    private lateinit var mainDrawableView: MainView
+    // Location and notifications are requested together. Background location has to be
+    // requested on its own afterwards, Android 11+ ignores it when bundled with the others.
+    private val foregroundPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+            if (hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION)) {
+                Log.d("permissions", "Permission granted for ACCESS_COARSE_LOCATION.")
+                startUpdates()
+                requestBackgroundLocation()
+            } else {
+                Log.e("permissions", "Permission denied for ACCESS_COARSE_LOCATION.")
+                showLocationRequiredDialog()
+            }
+        }
 
+    private val backgroundPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            Log.d("permissions", "ACCESS_BACKGROUND_LOCATION granted: $granted")
+            requestExactAlarms()
+        }
 
     override fun onStart(){
         super.onStart()
         inst = this
+    }
+
+    override fun onStop() {
+        inst = null
+        super.onStop()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -43,18 +64,18 @@ class MainActivity : AppCompatActivity() {
 
         setContentView(R.layout.activity_main)
 
-        while(!checkPermissions()){
-        }
-
         mTotalVelocity = 0.0
         loadCache(this)
+        updateUI()
 
+        requestForegroundPermissions()
+    }
+
+    private fun startUpdates() {
         val updateIntent = Intent(this, UpdateService::class.java)
         JobIntentService.enqueueWork(this, UpdateService::class.java, UPDATE_JOB_ID, updateIntent)
 
         setupUpdateAlarm()
-        updateUI()
-
     }
 
     private fun convertVelocityToOffset(velocity : Double) : Long {
@@ -72,7 +93,7 @@ class MainActivity : AppCompatActivity() {
 
         val alarmMgr: AlarmManager = this.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val alarmIntent: PendingIntent = Intent(this, UpdateAlarmReceiver::class.java).let { intent ->
-            PendingIntent.getBroadcast(this, 0, intent, 0)
+            PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
         }
 
         // With setInexactRepeating(), you have to use one of the AlarmManager interval
@@ -85,88 +106,80 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    private fun checkPermissions(): Boolean {
-
-        var passed = true
-
-        // Here, thisActivity is the current activity
-        if (ContextCompat.checkSelfPermission(this,
-                Manifest.permission.ACCESS_COARSE_LOCATION)
-            != PackageManager.PERMISSION_GRANTED) {
-
-            Log.d("location", "Requesting ACCESS_COARSE_LOCATION permissions.")
-            // Permission is not granted
-            ActivityCompat.requestPermissions(this,
-                arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION),
-                COARSE_LOCATION_PERMISSION_REQUEST)
-
-            passed = false
-        }
-
-        if( Build.VERSION.SDK_INT >= 29 && ContextCompat.checkSelfPermission(this,
-                Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-            != PackageManager.PERMISSION_GRANTED) {
-
-            Log.d("location", "Requesting ACCESS_BACKGROUND_LOCATION permissions.")
-            // Permission is not granted
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION),
-                BACKGROUND_LOCATION_PERMISSION_REQUEST
-            )
-
-            passed = false
-        }
-
-        return passed
+    private fun hasPermission(permission: String): Boolean {
+        return ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int,
-                                            permissions: Array<String>, grantResults: IntArray) {
-        when (requestCode) {
-            COARSE_LOCATION_PERMISSION_REQUEST -> {
-                // If request is cancelled, the result arrays are empty.
-                if ((grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
-                    // permission was granted, yay! Do the
-                    // contacts-related task you need to do.
-
-                    Log.d("permissions", "Permission granted for ACCESS_COARSE_LOCATION.")
-
-                } else {
-                    // permission denied, boo! Disable the
-                    // functionality that depends on this permission.
-                    Log.e("permissions", "Permission denied for ACCESS_COARSE_LOCATION.")
-                    exitProcess(0)
-                }
-                return
-            }
-
-            BACKGROUND_LOCATION_PERMISSION_REQUEST -> {
-                // If request is cancelled, the result arrays are empty.
-                if ((grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
-                    // permission was granted, yay! Do the
-                    // contacts-related task you need to do.
-
-                    Log.d("permissions", "Permission granted for ACCESS_BACKGROUND_LOCATION.")
-
-                } else {
-                    // permission denied, boo! Disable the
-                    // functionality that depends on this permission.
-
-                    if(Build.VERSION.SDK_INT >= 29) {
-                        Log.e("permissions", "Permission denied for ACCESS_BACKGROUND_LOCATION.")
-                        exitProcess(0)
-                    }
-                }
-                return
-            }
-
-            // Add other 'when' lines to check for other
-            // permissions this app might request.
-            else -> {
-                // Ignore all other requests.
-            }
+    private fun requestForegroundPermissions() {
+        val permissions = mutableListOf(Manifest.permission.ACCESS_COARSE_LOCATION)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
+
+        val missing = permissions.filter { !hasPermission(it) }
+        if (missing.isEmpty()) {
+            startUpdates()
+            requestBackgroundLocation()
+        } else {
+            Log.d("permissions", "Requesting $missing")
+            foregroundPermissionLauncher.launch(missing.toTypedArray())
+        }
+    }
+
+    private fun requestBackgroundLocation() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+            hasPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) ||
+            askedBefore(R.string.asked_background_location_pref_name)) {
+            requestExactAlarms()
+            return
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.background_location_title)
+            .setMessage(R.string.background_location_message)
+            .setPositiveButton(R.string.continue_button) { _, _ ->
+                backgroundPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            }
+            .setNegativeButton(R.string.not_now_button) { _, _ -> requestExactAlarms() }
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun requestExactAlarms() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+
+        val alarmMgr = getSystemService(AlarmManager::class.java)
+        if (alarmMgr.canScheduleExactAlarms() || askedBefore(R.string.asked_exact_alarm_pref_name)) return
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.exact_alarm_title)
+            .setMessage(R.string.exact_alarm_message)
+            .setPositiveButton(R.string.continue_button) { _, _ ->
+                startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, "package:$packageName".toUri()))
+            }
+            .setNegativeButton(R.string.not_now_button, null)
+            .show()
+    }
+
+    // Returns whether the user has already been asked, and remembers that they have now.
+    private fun askedBefore(prefName: Int): Boolean {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        val key = getString(prefName)
+        val asked = prefs.getBoolean(key, false)
+        prefs.edit { putBoolean(key, true) }
+        return asked
+    }
+
+    private fun showLocationRequiredDialog() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.location_required_title)
+            .setMessage(R.string.location_required_message)
+            .setPositiveButton(R.string.open_settings_button) { _, _ ->
+                startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:$packageName".toUri()))
+            }
+            .setNegativeButton(R.string.close_button) { _, _ -> finish() }
+            .setCancelable(false)
+            .show()
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -274,13 +287,31 @@ fun updateNotificationAlarm(context: Context, notificationTime: Long){
 
     val alarmMgr: AlarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
     val notificationIntent = Intent(context, NotificationAlarmReceiver::class.java).let { intent ->
-        PendingIntent.getBroadcast(context, 0, intent, 0)
+        PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_IMMUTABLE)
     }
 
     alarmMgr.cancel(notificationIntent)
-    alarmMgr.setExactAndAllowWhileIdle(
-        AlarmManager.RTC_WAKEUP,
-        notificationTime,
-        notificationIntent
-    )
+
+    // Without sunset data the "best" time is in the past, and an alarm in the past fires
+    // immediately and then reschedules itself again, spamming notifications.
+    if (notificationTime <= System.currentTimeMillis()) {
+        Log.w("alarm", "Not scheduling notification for past time ${epochToString(notificationTime)}")
+        return
+    }
+
+    // Exact alarms need the user to allow "Alarms & reminders" on Android 12+. Fall back to an
+    // inexact alarm, which may arrive a few minutes late, if they haven't.
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmMgr.canScheduleExactAlarms()) {
+        alarmMgr.setExactAndAllowWhileIdle(
+            AlarmManager.RTC_WAKEUP,
+            notificationTime,
+            notificationIntent
+        )
+    } else {
+        alarmMgr.setAndAllowWhileIdle(
+            AlarmManager.RTC_WAKEUP,
+            notificationTime,
+            notificationIntent
+        )
+    }
 }

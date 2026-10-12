@@ -9,4 +9,17 @@
     <string name="sunset_yesterday_pref_name">SunsetYesterday</string>
     <string name="sunset_tomorrow_pref_name">SunsetTomorrow</string>
     <string name="default_sunset_time_text">+0:00:00</string>
+    <string name="asked_background_location_pref_name">AskedBackgroundLocation</string>
+    <string name="asked_exact_alarm_pref_name">AskedExactAlarm</string>
+
+    <string name="continue_button">Continue</string>
+    <string name="not_now_button">Not now</string>
+    <string name="open_settings_button">Open settings</string>
+    <string name="close_button">Close</string>
+    <string name="location_required_title">Location needed</string>
+    <string name="location_required_message">Sunset Watcher needs your approximate location to know when the sun sets where you are.</string>
+    <string name="background_location_title">Keep sunset times up to date</string>
+    <string name="background_location_message">To update the sunset time while the app is closed, choose \"Allow all the time\" on the next screen.</string>
+    <string name="exact_alarm_title">Notify you on time</string>
+    <string name="exact_alarm_message">Allow \"Alarms &amp; reminders\" on the next screen so the sunset notification arrives exactly when you set it, instead of a few minutes late.</string>
 </resources>
